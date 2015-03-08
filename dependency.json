@@ -1,0 +1,11 @@
+{
+    "product" : "gmock",
+    "version" : "1.7.0",
+    "dependencies" :
+    [
+	{
+	    "product" : "gtest",
+	    "version" : "1.7.0"
+	}
+    ]
+}

@@ -10,6 +10,8 @@ import zipfile
 from waflib import Logs
 from waflib.extras.preparation import PreparationContext
 from waflib.extras.build_status import BuildStatus
+from waflib.extras.filesystem_utils import removeSubdir
+from waflib.extras.url_utils import syncRemoteFile
 
 __downloadUrl = 'https://googletest.googlecode.com/files/%s'
 __srcFile = 'gmock-1.7.0.zip'
@@ -26,49 +28,20 @@ def prepare(prepCtx):
     if status.isSuccess():
 	prepCtx.msg('Preparation already complete', 'skipping')
 	return
+    srcPath = os.path.join(prepCtx.path.abspath(), __srcDir)
     filePath = os.path.join(prepCtx.path.abspath(), __srcFile)
     url = __downloadUrl % __srcFile
-    if os.access(filePath, os.R_OK):
-	hasher = hashlib.sha256()
-	handle = open(filePath, 'rb')
-	try:
-	    hasher.update(handle.read())
-	finally:
-	    handle.close()
-	if hasher.digest() != __srcSha256Checksum:
-	    os.remove(filePath)
-    if os.access(filePath, os.R_OK):
-	prepCtx.start_msg('Using existing source file')
-	prepCtx.end_msg(filePath)
+    prepCtx.msg('Synchronising', url)
+    if syncRemoteFile(__srcSha256Checksum, url, filePath):
+	prepCtx.msg('Saved to', filePath)
     else:
-	prepCtx.start_msg('Downloading %s' % url)
-	triesRemaining = 10
-	while triesRemaining > 1:
-	    try:
-		urllib.urlretrieve(url, filePath)
-		break
-	    except urllib.ContentTooShortError:
-		triesRemaining -= 1
-		if os.path.exists(filePath):
-		    os.remove(filePath)
-	else:
-	    prepCtx.fatal('Could not download %s' % url)
-	prepCtx.end_msg('Saved to %s' % filePath)
-    srcPath = os.path.join(prepCtx.path.abspath(), __srcDir)
-    extractPath = os.path.join(prepCtx.path.abspath(), 'gmock-1.7.0')
-    binPath = os.path.join(prepCtx.path.abspath(), 'bin')
-    libPath = os.path.join(prepCtx.path.abspath(), 'lib')
-    includePath = os.path.join(prepCtx.path.abspath(), 'include')
-    for path in [srcPath, extractPath, binPath, libPath, includePath]:
-	if os.path.exists(path):
-	    if os.path.isdir(path):
-		shutil.rmtree(path)
-	    else:
-		os.remove(path)
+	prepCtx.fatal('Synchronisation failed')
+    extractDir = 'gmock-1.7.0'
+    removeSubdir(prepCtx.path.abspath(), __srcDir, extractDir, 'bin', 'lib', 'include')
     prepCtx.start_msg('Extracting files to')
     handle = zipfile.ZipFile(filePath, 'r')
     handle.extractall(prepCtx.path.abspath())
-    os.rename(extractPath, srcPath)
+    os.rename(extractDir, __srcDir)
     prepCtx.end_msg(srcPath)
     for dirPath, subDirList, fileList in os.walk(os.path.join(srcPath, 'scripts')):
 	for file in fileList:

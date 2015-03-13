@@ -11,7 +11,7 @@ from waflib import Logs
 from waflib.extras.preparation import PreparationContext
 from waflib.extras.build_status import BuildStatus
 from waflib.extras.filesystem_utils import removeSubdir
-from waflib.extras.url_utils import syncRemoteFile
+from waflib.extras.mirror import MirroredZipFile
 
 __downloadUrl = 'https://googletest.googlecode.com/files/%s'
 __srcFile = 'gmock-1.7.0.zip'
@@ -29,18 +29,19 @@ def prepare(prepCtx):
 	prepCtx.msg('Preparation already complete', 'skipping')
 	return
     srcPath = os.path.join(prepCtx.path.abspath(), __srcDir)
-    filePath = os.path.join(prepCtx.path.abspath(), __srcFile)
-    url = __downloadUrl % __srcFile
-    prepCtx.msg('Synchronising', url)
-    if syncRemoteFile(__srcSha256Checksum, url, filePath):
-	prepCtx.msg('Saved to', filePath)
+    file = MirroredZipFile(
+	    __srcSha256Checksum,
+	    __downloadUrl % __srcFile,
+	    os.path.join(prepCtx.path.abspath(), __srcFile))
+    prepCtx.msg('Synchronising', file.getSrcUrl())
+    if file.sync(10):
+	prepCtx.msg('Saved to', file.getTgtPath())
     else:
 	prepCtx.fatal('Synchronisation failed')
     extractDir = 'gmock-1.7.0'
     removeSubdir(prepCtx.path.abspath(), __srcDir, extractDir, 'bin', 'lib', 'include')
     prepCtx.start_msg('Extracting files to')
-    handle = zipfile.ZipFile(filePath, 'r')
-    handle.extractall(prepCtx.path.abspath())
+    file.extract(prepCtx.path.abspath())
     os.rename(extractDir, __srcDir)
     prepCtx.end_msg(srcPath)
     for dirPath, subDirList, fileList in os.walk(os.path.join(srcPath, 'scripts')):
